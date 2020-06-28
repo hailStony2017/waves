@@ -22,6 +22,7 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 
+app = dash.Dash()
 
 def max_min_nomralization(x, max, min):
     if max != min:
@@ -444,7 +445,7 @@ if __name__ == '__main__':
 
     )
     # fig.write_html("templates/index.html")
-    app = dash.Dash()
+
     app.layout = html.Div([
 
         dcc.Graph(figure=fig)
