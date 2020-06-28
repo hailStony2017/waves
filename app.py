@@ -363,96 +363,76 @@ class WeiboTalent:
         return talent
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Word cloud based on keyword")
-    parser.add_argument("-p", "--pagenum", type=int, default=2, help="# of pages to crawl")
-    parser.add_argument("-i", "--input", type=str, default="wave.txt", help="Input file name")
-    parser.add_argument("-o", "--overwrite", action="store_true", default=False, help="Rerun search to overwrite local file")
 
-    args = parser.parse_args()
-    now = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+now = datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S")
+input = "wave.txt"
 
-    output_file = "outputs/"+ args.input.split(".")[0] + f"_score_{now}.json"
-    if args.overwrite:
-        weibo_tp = defaultdict(dict)
-        all_talents = []
+output_file = "outputs/"+ input.split(".")[0] + f"_score_{now}.json"
 
-        with open(args.input, 'r') as f:
-            keywords = [(k.rstrip("\n").split(",")[0], k.rstrip("\n").split(",")[1]) for k in f.readlines()]
+list_of_files = glob.glob("outputs/"+input.split(".")[0]+"*")
+latest_file = max(list_of_files, key=os.path.getctime)
 
-        for username, uid in keywords:
-            print(f"Processing keyword {username}")
-            wb = WeiboTalent(username, uid)
-            wb.get_user_info()
-            # wb.get_related_posts(args.pagenum)
-            wb.get_pages(args.pagenum)
+print(f"Loading latest output file {latest_file}")
+with open(latest_file, 'r', encoding="utf8") as f:
+    all_talents_str = f.read()
 
-            all_talents.append(wb)
-        with open(output_file, 'w', encoding="utf8") as f:
-            f.write(json.dumps([wb.keyinfo for wb in all_talents], ensure_ascii=False, indent=4))
-    else:
-        list_of_files = glob.glob("outputs/"+args.input.split(".")[0]+"*")
-        latest_file = max(list_of_files, key=os.path.getctime)
+all_talents_str = json.loads(all_talents_str)
+all_talents = [WeiboTalent(t['user_name'],
+                           t['user_id'],
+                           followers_count=t['followers_count'],
+                           statuses_count=t['statuses_count'],
+                           related_posts=t['related_posts'],
+                           got_count=t['got_count'],
+                           weibo=t['weibo'])
+               for t in all_talents_str]
 
-        print(f"Loading latest output file {latest_file}")
-        with open(latest_file, 'r', encoding="utf8") as f:
-            all_talents_str = f.read()
+max_cogn_score = max(t.cogn_score for t in all_talents) * 1.1
+min_cogn_score = min(t.cogn_score for t in all_talents) * 0.9
+# min_cogn_score = 1000000
+max_attn_score = max(t.attn_score for t in all_talents) * 1.1
+# max_attn_score = 20000
+min_attn_score = min(t.attn_score for t in all_talents) * 0.9
+# min_attn_score = 1
+for t in all_talents:
+    t.norm_cogn_score = max_min_nomralization(t.cogn_score, max_cogn_score, min_cogn_score)
+    t.norm_attn_score = max_min_nomralization(t.attn_score, max_attn_score, min_attn_score)
 
-        all_talents_str = json.loads(all_talents_str)
-        all_talents = [WeiboTalent(t['user_name'],
-                                   t['user_id'],
-                                   followers_count=t['followers_count'],
-                                   statuses_count=t['statuses_count'],
-                                   related_posts=t['related_posts'],
-                                   got_count=t['got_count'],
-                                   weibo=t['weibo'])
-                       for t in all_talents_str]
-
-    max_cogn_score = max(t.cogn_score for t in all_talents) * 1.1
-    min_cogn_score = min(t.cogn_score for t in all_talents) * 0.9
-    # min_cogn_score = 1000000
-    max_attn_score = max(t.attn_score for t in all_talents) * 1.1
-    # max_attn_score = 20000
-    min_attn_score = min(t.attn_score for t in all_talents) * 0.9
-    # min_attn_score = 1
-    for t in all_talents:
-        t.norm_cogn_score = max_min_nomralization(t.cogn_score, max_cogn_score, min_cogn_score)
-        t.norm_attn_score = max_min_nomralization(t.attn_score, max_attn_score, min_attn_score)
-
-    talent_pd = pd.DataFrame.from_records([t.scores for t in all_talents])
-    fig = px.scatter(talent_pd,
-                     x="norm_cogn_score",
-                     y="norm_attn_score",
-                     text='user_name',
-                     size="norm_cogn_score",
-                     color='norm_attn_score',
-                     log_x=True,
-                     log_y=True)
-    fig.update_layout(
-        title=go.layout.Title(
-            text="乘风破浪的姐姐微博势力榜"
-        ),
-        xaxis=go.layout.XAxis(
-            title=go.layout.xaxis.Title(
-                text="认知度"
-            )
-        ),
-        yaxis=go.layout.YAxis(
-            title=go.layout.yaxis.Title(
-                text="关心度"
-            )
+talent_pd = pd.DataFrame.from_records([t.scores for t in all_talents])
+fig = px.scatter(talent_pd,
+                 x="norm_cogn_score",
+                 y="norm_attn_score",
+                 text='user_name',
+                 size="norm_cogn_score",
+                 color='norm_attn_score',
+                 log_x=True,
+                 log_y=True)
+fig.update_layout(
+    title=go.layout.Title(
+        text="乘风破浪的姐姐微博势力榜"
+    ),
+    xaxis=go.layout.XAxis(
+        title=go.layout.xaxis.Title(
+            text="认知度"
         )
-        # font_size=11,
-        # width=1500,
-        # height=500
-
+    ),
+    yaxis=go.layout.YAxis(
+        title=go.layout.yaxis.Title(
+            text="关心度"
+        )
     )
-    # fig.write_html("templates/index.html")
+    # font_size=11,
+    # width=1500,
+    # height=500
 
-    app.layout = html.Div([
+)
+# fig.write_html("templates/index.html")
 
-        dcc.Graph(figure=fig)
-    ])
-    app.title = "乘风破浪的姐姐微博势力榜"
+app.layout = html.Div([
+
+    dcc.Graph(figure=fig)
+])
+app.title = "乘风破浪的姐姐微博势力榜"
+
+if __name__ == "__main__":
     app.run_server()
 
