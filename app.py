@@ -22,7 +22,10 @@ import dash
 import dash_core_components as dcc
 import dash_html_components as html
 
-app = dash.Dash()
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+server = app.server
 
 def max_min_nomralization(x, max, min):
     if max != min:
